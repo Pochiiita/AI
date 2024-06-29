@@ -170,20 +170,20 @@ class AIPlayer(Player):
 class Board:
     def __init__(self):
         self.board = [[' ' for _ in range(15)] for _ in range(15)]
+        self.add_premium_squares()
 
-    def get_board(self, players):
-        board_str = "   |  " + "  |  ".join(str(item) for item in range(10)) + "  | " + "  | ".join(str(item) for item in range(10, 15)) + " |\n"
-        board_str += "   " + "_ " * 29 + "_\n"
-        for i, row in enumerate(self.board):
-            row_str = str(i).rjust(2) + " | " + " | ".join(row) + " |"
-            board_str += row_str + "\n"
-            board_str += "   " + "|_" * 29 + "|\n"
+    def get_board(self):
+        # Create column headers
+        header = "    " + "   ".join(f"{i:2}" for i in range(15)) + "   "
+        board_str = header + "\n     " + "+-----" * 15 + "+\n"
 
-        score_str = "\nScores:\n"
-        for player in players:
-            score_str += player.get_name() + ": " + str(player.get_score()) + "\n"
+        # Create each row with row headers
+        for i in range(15):
+            row = f"{i:2}   | " + "   | ".join(self.board[i]) + "   |"
+            board_str += row + "\n     " + "+-----" * 15 + "+\n"
 
-        return board_str + score_str
+        return board_str
+
     def add_premium_squares(self):
         TRIPLE_WORD_SCORE = ((0,0), (7, 0), (14,0), (0, 7), (14, 7), (0, 14), (7, 14), (14,14))
         DOUBLE_WORD_SCORE = ((1,1), (2,2), (3,3), (4,4), (1, 13), (2, 12), (3, 11), (4, 10), (13, 1), (12, 2), (11, 3), (10, 4), (13,13), (12, 12), (11,11), (10,10))
@@ -200,28 +200,37 @@ class Board:
             self.board[coordinate[0]][coordinate[1]] = "DLS"
 
     def place_word(self, word, location, direction, player):
-        global premium_spots
-        premium_spots = []
+        
         direction = direction.lower()
         word = word.upper()
 
-        if direction.lower() == "right":
+        if direction == "right":
+            if location[1] + len(word) > 15:
+                raise IndexError("Word placement exceeds board boundaries")
             for i in range(len(word)):
-                if self.board[location[0]][location[1]+i] != "   ":
-                    premium_spots.append((word[i], self.board[location[0]][location[1]+i]))
-                self.board[location[0]][location[1]+i] = " " + word[i] + " "
-
-        elif direction.lower() == "down":
+                self.board[location[0]][location[1] + i] = word[i]
+        elif direction == "down":
+            if location[0] + len(word) > 15:
+                raise IndexError("Word placement exceeds board boundaries")
             for i in range(len(word)):
-                if self.board[location[0]][location[1]+i] != "   ":
-                    premium_spots.append((word[i], self.board[location[0]][location[1]+i]))
-                self.board[location[0]+i][location[1]] = " " + word[i] + " "
+                self.board[location[0] + i][location[1]] = word[i]
 
         for letter in word:
             for tile in player.get_rack_arr():
                 if tile.get_letter() == letter:
                     player.rack.remove_from_rack(tile)
         player.rack.replenish_rack()
+
+    def remove_word(self, word, location, direction):
+        direction = direction.lower()
+        word = word.upper()
+
+        if direction == "right":
+            for i in range(len(word)):
+                self.board[location[0]][location[1] + i] = ' '
+        elif direction == "down":
+            for i in range(len(word)):
+                self.board[location[0] + i][location[1]] = ' '
 
 class Word:
     def __init__(self, word, location, player, direction, board):
@@ -258,7 +267,7 @@ def turn(player, board, bag):
 
     if skipped_turns < 6 or (player.rack.get_rack_length() == 0 and bag.get_remaining_tiles() == 0):
         print("\nRound " + str(round_number) + ": " + player.get_name() + "'s turn \n")
-        print(board.get_board(players))
+        print(board.get_board())
         print("\n" + player.get_name() + "'s Letter Rack: " + player.get_rack_str())
 
     if player.is_human_player():
@@ -311,9 +320,9 @@ def start_game():
     board = Board()
     bag = Bag()
 
-    print("\n\t\t\tWelcome to TagaLetrAI!")
+    print("\n\t\tWelcome to TagaLetrAI! A tagalog Scrabble Game!\n")
     human_player = Player(bag)
-    human_player.set_name(input("\tPlease enter your name: "))
+    human_player.set_name(input("Please enter your name: "))
 
     ai_player = AIPlayer(bag)
     ai_player.set_name("AI")
