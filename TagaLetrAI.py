@@ -16,6 +16,7 @@ def load_tagalog_dictionary(file_path):
         for row in reader:
             valid_words.add(row[0].strip().upper())
 
+# Adjust the path to your Tagalog dictionary CSV file as needed
 load_tagalog_dictionary('tagalog_dict.csv')
 
 class Tile:
@@ -40,17 +41,41 @@ class Bag:
 
     def initialize_bag(self):
         global LETTER_VALUES
-        tile_quantities = {
-            "A": 9, "B": 2, "C": 2, "D": 4, "E": 12, "F": 2, "G": 3, "H": 2, "I": 9, "J": 1, "K": 1,
-            "L": 4, "M": 2, "N": 6, "O": 8, "P": 2, "Q": 1, "R": 6, "S": 4, "T": 6, "U": 4, "V": 2,
-            "W": 2, "X": 1, "Y": 2, "Z": 1, "#": 2, "NG": 2, "NANG": 2, "Ñ": 3
-        }
-        for letter, quantity in tile_quantities.items():
-            self.add_to_bag(Tile(letter, LETTER_VALUES), quantity)
+        self.add_to_bag(Tile("A", LETTER_VALUES), 9)
+        self.add_to_bag(Tile("B", LETTER_VALUES), 2)
+        self.add_to_bag(Tile("C", LETTER_VALUES), 2)
+        self.add_to_bag(Tile("D", LETTER_VALUES), 4)
+        self.add_to_bag(Tile("E", LETTER_VALUES), 12)
+        self.add_to_bag(Tile("F", LETTER_VALUES), 2)
+        self.add_to_bag(Tile("G", LETTER_VALUES), 3)
+        self.add_to_bag(Tile("H", LETTER_VALUES), 2)
+        self.add_to_bag(Tile("I", LETTER_VALUES), 9)
+        self.add_to_bag(Tile("J", LETTER_VALUES), 9)
+        self.add_to_bag(Tile("K", LETTER_VALUES), 1)
+        self.add_to_bag(Tile("L", LETTER_VALUES), 4)
+        self.add_to_bag(Tile("M", LETTER_VALUES), 2)
+        self.add_to_bag(Tile("N", LETTER_VALUES), 6)
+        self.add_to_bag(Tile("O", LETTER_VALUES), 8)
+        self.add_to_bag(Tile("P", LETTER_VALUES), 2)
+        self.add_to_bag(Tile("Q", LETTER_VALUES), 1)
+        self.add_to_bag(Tile("R", LETTER_VALUES), 6)
+        self.add_to_bag(Tile("S", LETTER_VALUES), 4)
+        self.add_to_bag(Tile("T", LETTER_VALUES), 6)
+        self.add_to_bag(Tile("U", LETTER_VALUES), 4)
+        self.add_to_bag(Tile("V", LETTER_VALUES), 2)
+        self.add_to_bag(Tile("W", LETTER_VALUES), 2)
+        self.add_to_bag(Tile("X", LETTER_VALUES), 1)
+        self.add_to_bag(Tile("Y", LETTER_VALUES), 2)
+        self.add_to_bag(Tile("Z", LETTER_VALUES), 1)
+        self.add_to_bag(Tile("#", LETTER_VALUES), 2)
         shuffle(self.bag)
 
+
     def take_from_bag(self):
-        return self.bag.pop()
+        if self.bag:
+            return self.bag.pop()
+        else:
+            return None
 
     def get_remaining_tiles(self):
         return len(self.bag)
@@ -62,7 +87,9 @@ class Rack:
         self.initialize()
 
     def add_to_rack(self):
-        self.rack.append(self.bag.take_from_bag())
+        tile = self.bag.take_from_bag()
+        if tile:
+            self.rack.append(tile)
 
     def initialize(self):
         for _ in range(7):
@@ -74,8 +101,11 @@ class Rack:
     def get_rack_arr(self):
         return self.rack
 
-    def remove_from_rack(self, tile):
-        self.rack.remove(tile)
+    def remove_from_rack(self, letter):
+        for tile in self.rack:
+            if tile.get_letter() == letter:
+                self.rack.remove(tile)
+                break
 
     def get_rack_length(self):
         return len(self.rack)
@@ -122,8 +152,13 @@ class AIPlayer(Player):
     def generate_move(self, board, players):
         best_move = None
         best_score = float('-inf')
-        depth = 5
-        for move in self.get_all_possible_moves(board):
+        depth = 1  # Reduced depth for quicker evaluation
+        print(f"AI {self.get_name()} is generating a move...")
+
+        all_possible_moves = self.get_all_possible_moves(board)
+        print(f"Total possible moves: {len(all_possible_moves)}")
+
+        for move in all_possible_moves:
             if self.is_valid_move(move, board):
                 board.place_word(move[0], move[1], move[2], self)
                 score = self.alpha_beta_pruning(board, depth, float('-inf'), float('inf'), True, players)
@@ -131,39 +166,66 @@ class AIPlayer(Player):
                 if score > best_score:
                     best_score = score
                     best_move = move
+                print(f"Move: {move}, Score: {score}")
+
+        if best_move is None:
+            print("No valid moves found by AI.")
+        else:
+            print(f"Best move: {best_move} with score: {best_score}")
+
         return best_move
 
     def get_all_possible_moves(self, board):
         moves = []
-        for tile in self.rack.get_rack_arr():
+        rack_letters = [tile.get_letter() for tile in self.rack.get_rack_arr()]
+        for word in self.generate_valid_words(rack_letters):
             for row in range(15):
                 for col in range(15):
-                    if board.board[row][col] == ' ':
-                        if col + 1 <= 15:
-                            moves.append((tile.get_letter(), (row, col), 'right'))
-                        if row + 1 <= 15:
-                            moves.append((tile.get_letter(), (row, col), 'down'))
+                    if board.board[row][col] == ' ' and self.has_adjacent_tiles(row, col, board):
+                        if col + len(word) <= 15:
+                            moves.append((word, (row, col), 'right'))
+                        if row + len(word) <= 15:
+                            moves.append((word, (row, col), 'down'))
         return moves
 
+    def generate_valid_words(self, rack_letters):
+        from itertools import permutations
+        valid_words_set = set()
+        for length in range(1, len(rack_letters) + 1):
+            for perm in permutations(rack_letters, length):
+                word = ''.join(perm)
+                if word in valid_words:
+                    valid_words_set.add(word)
+        return valid_words_set
+
+    def has_adjacent_tiles(self, row, col, board):
+        directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+        for dr, dc in directions:
+            adj_row, adj_col = row + dr, col + dc
+            if 0 <= adj_row < 15 and 0 <= adj_col < 15:
+                if board.board[adj_row][adj_col] != ' ':
+                    return True
+        return False
+
     def is_valid_move(self, move, board):
-        letter, (row, col), direction = move
+        word, (row, col), direction = move
         if direction == 'right':
-            if col + 1 > 15:
+            if col + len(word) > 15:
                 return False
         elif direction == 'down':
-            if row + 1 > 15:
+            if row + len(word) > 15:
                 return False
         return True
 
     def alpha_beta_pruning(self, board, depth, alpha, beta, maximizing_player, players):
         if depth == 0:
-            return self.heuristic_evaluation(board, players)
+            return self.evaluate_board(board, players)
         if maximizing_player:
             max_eval = float('-inf')
             for move in self.get_all_possible_moves(board):
                 if self.is_valid_move(move, board):
                     board.place_word(move[0], move[1], move[2], self)
-                    eval = self.alpha_beta_pruning(board, depth-1, alpha, beta, False, players)
+                    eval = self.alpha_beta_pruning(board, depth - 1, alpha, beta, False, players)
                     board.remove_word(move[0], move[1], move[2])
                     max_eval = max(max_eval, eval)
                     alpha = max(alpha, eval)
@@ -175,7 +237,7 @@ class AIPlayer(Player):
             for move in self.get_all_possible_moves(board):
                 if self.is_valid_move(move, board):
                     board.place_word(move[0], move[1], move[2], self)
-                    eval = self.alpha_beta_pruning(board, depth-1, alpha, beta, True, players)
+                    eval = self.alpha_beta_pruning(board, depth - 1, alpha, beta, True, players)
                     board.remove_word(move[0], move[1], move[2])
                     min_eval = min(min_eval, eval)
                     beta = min(beta, eval)
@@ -183,121 +245,99 @@ class AIPlayer(Player):
                         break
             return min_eval
 
-    def heuristic_evaluation(self, board, players):
-        ai_score = self.get_score()
-        human_score = next(player.get_score() for player in players if player.is_human_player())
-        return ai_score - human_score
+    def evaluate_board(self, board, players):
+        return sum(player.get_score() for player in players)
+
 
 class Board:
     def __init__(self):
         self.board = [[' ' for _ in range(15)] for _ in range(15)]
-        self.add_premium_squares()
 
-    def get_board(self, players):
-        board_str = "   |  " + "  |  ".join(str(item) for item in range(10)) + "  | " + "  | ".join(str(item) for item in range(10, 15)) + " |\n"
-        board_str += "   " + "_ " * 29 + "_\n"
-        for i, row in enumerate(self.board):
-            row_str = str(i).rjust(2) + " | " + " | ".join(row) + " |"
-            board_str += row_str + "\n"
-            board_str += "   " + "|_" * 29 + "|\n"
-
-        score_str = "\nScores:\n"
-        for player in players:
-            score_str += player.get_name() + ": " + str(player.get_score()) + "\n"
-
-        return board_str + score_str
-
-    def add_premium_squares(self):
-        TRIPLE_WORD_SCORE = ((0,0), (7, 0), (14,0), (0, 7), (14, 7), (0, 14), (7, 14), (14, 14))
-        DOUBLE_WORD_SCORE = ((1, 1), (2, 2), (3, 3), (4, 4), (7, 7), (10, 10), (11, 11), (12, 12), (13, 13))
-        TRIPLE_LETTER_SCORE = ((1, 5), (5, 1), (9, 1), (13, 5), (5, 13), (9, 13), (1, 9), (13, 9))
-        DOUBLE_LETTER_SCORE = ((0, 3), (0, 11), (2, 6), (2, 8), (3, 0), (3, 7), (3, 14), (6, 2), (6, 6), (6, 8), (6, 12), (7, 3), (7, 11), (8, 2), (8, 6), (8, 8), (8, 12), (11, 0), (11, 7), (11, 14), (12, 6), (12, 8), (14, 3), (14, 11))
-
-        for x, y in TRIPLE_WORD_SCORE:
-            self.board[x][y] = "TW"
-        for x, y in DOUBLE_WORD_SCORE:
-            self.board[x][y] = "DW"
-        for x, y in TRIPLE_LETTER_SCORE:
-            self.board[x][y] = "TL"
-        for x, y in DOUBLE_LETTER_SCORE:
-            self.board[x][y] = "DL"
+    def get_board(self):
+        return self.board
 
     def place_word(self, word, position, direction, player):
         row, col = position
-        if direction == 'right':
-            for i, letter in enumerate(word):
+        score = 0
+        for i, letter in enumerate(word):
+            if direction == 'right':
                 self.board[row][col + i] = letter
-        elif direction == 'down':
-            for i, letter in enumerate(word):
+            elif direction == 'down':
                 self.board[row + i][col] = letter
+            player.rack.remove_from_rack(letter)
+            score += LETTER_VALUES.get(letter, 0)
+        player.increase_score(score)
 
     def remove_word(self, word, position, direction):
         row, col = position
-        if direction == 'right':
-            for i, letter in enumerate(word):
+        for i, letter in enumerate(word):
+            if direction == 'right':
                 self.board[row][col + i] = ' '
-        elif direction == 'down':
-            for i, letter in enumerate(word):
+            elif direction == 'down':
                 self.board[row + i][col] = ' '
 
-class Game:
+    def is_valid_position(self, row, col):
+        return 0 <= row < 15 and 0 <= col < 15
+
+    def display(self):
+        for row in self.board:
+            print(' '.join(row))
+
+class ScrabbleGame:
     def __init__(self):
         self.bag = Bag()
-        self.players = []
-        self.current_player_index = 0
         self.board = Board()
+        self.players = [Player(self.bag), AIPlayer(self.bag)]
+        self.players[0].set_name("Player 1")
+        self.players[1].set_name("AI")
+        self.current_player_index = 0
+        self.winner = None
 
-    def add_player(self, player):
-        self.players.append(player)
+    def get_current_player(self):
+        return self.players[self.current_player_index]
 
-    def start_game(self):
-        while not self.is_game_over():
-            self.play_turn()
-
-    def play_turn(self):
-        current_player = self.players[self.current_player_index]
-        print(self.board.get_board(self.players))
-        print(f"{current_player.get_name()}'s turn. Current rack: {current_player.get_rack_str()}")
-        if current_player.is_human_player():
-            word, position, direction = self.get_human_move()
-        else:
-            move = current_player.generate_move(self.board, self.players)
-            word, position, direction = move
-
-        self.board.place_word(word, position, direction, current_player)
-        current_player.increase_score(self.calculate_word_score(word, position, direction))
-        current_player.rack.replenish_rack()
+    def next_turn(self):
         self.current_player_index = (self.current_player_index + 1) % len(self.players)
 
-    def get_human_move(self):
-        word = input("Enter the word to place: ").upper()
-        row = int(input("Enter the starting row: "))
-        col = int(input("Enter the starting column: "))
-        direction = input("Enter the direction (right or down): ").lower()
-        return word, (row, col), direction
+    def check_winner(self):
+        for player in self.players:
+            if player.get_rack_length() == 0:
+                self.winner = player
+                return True
+        return False
 
-    def calculate_word_score(self, word, position, direction):
-        row, col = position
-        score = 0
-        if direction == 'right':
-            for i, letter in enumerate(word):
-                score += LETTER_VALUES[letter]
-        elif direction == 'down':
-            for i, letter in enumerate(word):
-                score += LETTER_VALUES[letter]
-        return score
+    def play(self):
+        while not self.check_winner():
+            current_player = self.get_current_player()
+            print(f"{current_player.get_name()}'s turn:")
+            self.board.display()
+            print(f"Rack: {current_player.get_rack_str()}")
+            if current_player.is_human_player():
+                word = input("Enter a word: ").strip().upper()
+                row = int(input("Enter row (0-14): "))
+                col = int(input("Enter column (0-14): "))
+                direction = input("Enter direction (right/down): ").strip().lower()
+                if self.is_valid_move(word, row, col, direction, current_player):
+                    self.board.place_word(word, (row, col), direction, current_player)
+                else:
+                    print("Invalid move. Try again.")
+            else:
+                move = current_player.generate_move(self.board, self.players)
+                if move:
+                    self.board.place_word(move[0], move[1], move[2], current_player)
+            self.next_turn()
+        print(f"The winner is {self.winner.get_name()} with a score of {self.winner.get_score()}!")
 
-    def is_game_over(self):
-        return all(player.get_rack_length() == 0 for player in self.players)
+    def is_valid_move(self, word, row, col, direction, player):
+        if direction == 'right' and col + len(word) > 15:
+            return False
+        if direction == 'down' and row + len(word) > 15:
+            return False
+        for letter in word:
+            if letter not in [tile.get_letter() for tile in player.get_rack_arr()]:
+                return False
+        return True
 
 # Example usage:
-game = Game()
-human_player = Player(game.bag, is_human=True)
-human_player.set_name("Human Player")
-ai_player = AIPlayer(game.bag)
-ai_player.set_name("AI Player")
-
-game.add_player(human_player)
-game.add_player(ai_player)
-
-game.start_game()
+game = ScrabbleGame()
+game.play()
