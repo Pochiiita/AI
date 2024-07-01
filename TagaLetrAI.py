@@ -1,10 +1,11 @@
 import csv
 from random import shuffle
+from itertools import permutations
 
 # Keeps track of the score-worth of each letter-tile.
 LETTER_VALUES = {"A": 1, "B": 3, "C": 3, "D": 2, "E": 1, "F": 4, "G": 2, "H": 4, "I": 1, "J": 8, "K": 5,
                  "L": 1, "M": 3, "N": 1, "O": 1, "P": 3, "Q": 10, "R": 1, "S": 1, "T": 1, "U": 1, "V": 4,
-                 "W": 4, "X": 8, "Y": 4, "Z": 10, "#": 0, "NG": 5, "NANG": 5, "Ñ": 6}
+                 "W": 4, "X": 8, "Y": 4, "Z": 10, "#": 0}
 
 # Global variable to store valid words
 valid_words = set()
@@ -145,6 +146,9 @@ class Player:
     def get_rack_length(self):
         return self.rack.get_rack_length()
 
+    def replenish_rack(self):
+        self.rack.replenish_rack()
+
 class AIPlayer(Player):
     def __init__(self, bag):
         super().__init__(bag, is_human=False)
@@ -152,7 +156,7 @@ class AIPlayer(Player):
     def generate_move(self, board, players):
         best_move = None
         best_score = float('-inf')
-        depth = 1  # Reduced depth for quicker evaluation
+        depth = 1
         print(f"AI {self.get_name()} is generating a move...")
 
         all_possible_moves = self.get_all_possible_moves(board)
@@ -189,7 +193,7 @@ class AIPlayer(Player):
         return moves
 
     def generate_valid_words(self, rack_letters):
-        from itertools import permutations
+
         valid_words_set = set()
         for length in range(1, len(rack_letters) + 1):
             for perm in permutations(rack_letters, length):
@@ -252,6 +256,23 @@ class AIPlayer(Player):
 class Board:
     def __init__(self):
         self.board = [[' ' for _ in range(15)] for _ in range(15)]
+        self.special_tiles = self.initialize_special_tiles()
+
+    def initialize_special_tiles(self):
+        special_tiles = {}
+        # Triple Word Score (TWS)
+        for i in [(0, 0), (0, 7), (0, 14), (7, 0), (7, 14), (14, 0), (14, 7), (14, 14)]:
+            special_tiles[i] = '3W'
+        # Double Word Score (DWS)
+        for i in [(1, 1), (2, 2), (3, 3), (4, 4), (10, 10), (11, 11), (12, 12), (13, 13), (1, 13), (2, 12), (3, 11), (4, 10), (10, 4), (11, 3), (12, 2), (13, 1)]:
+            special_tiles[i] = '2W'
+        # Triple Letter Score (TLS)
+        for i in [(1, 5), (1, 9), (5, 1), (5, 5), (5, 9), (5, 13), (9, 1), (9, 5), (9, 9), (9, 13), (13, 5), (13, 9)]:
+            special_tiles[i] = '3L'
+        # Double Letter Score (DLS)
+        for i in [(0, 3), (0, 11), (2, 6), (2, 8), (3, 0), (3, 7), (3, 14), (6, 2), (6, 6), (6, 8), (6, 12), (7, 3), (7, 11), (8, 2), (8, 6), (8, 8), (8, 12), (11, 0), (11, 7), (11, 14), (12, 6), (12, 8), (14, 3), (14, 11)]:
+            special_tiles[i] = '2L'
+        return special_tiles
 
     def get_board(self):
         return self.board
@@ -267,6 +288,7 @@ class Board:
             player.rack.remove_from_rack(letter)
             score += LETTER_VALUES.get(letter, 0)
         player.increase_score(score)
+        player.replenish_rack()
 
     def remove_word(self, word, position, direction):
         row, col = position
@@ -280,8 +302,19 @@ class Board:
         return 0 <= row < 15 and 0 <= col < 15
 
     def display(self):
-        for row in self.board:
-            print(' '.join(row))
+        print("   " + "  ".join(f"{i:02}" for i in range(15)))
+        print("   +" + "---+" * 15)
+        for i in range(15):
+            row_display = []
+            for j in range(15):
+                if self.board[i][j] != ' ':
+                    row_display.append(self.board[i][j])
+                elif (i, j) in self.special_tiles:
+                    row_display.append(self.special_tiles[(i, j)])
+                else:
+                    row_display.append(' ')
+            print(f"{i:02}| " + " | ".join(row_display) + " |")
+            print("   +" + "---+" * 15)
 
 class ScrabbleGame:
     def __init__(self):
@@ -325,6 +358,7 @@ class ScrabbleGame:
                 move = current_player.generate_move(self.board, self.players)
                 if move:
                     self.board.place_word(move[0], move[1], move[2], current_player)
+            self.board.display()  # Display the board after each move
             self.next_turn()
         print(f"The winner is {self.winner.get_name()} with a score of {self.winner.get_score()}!")
 
